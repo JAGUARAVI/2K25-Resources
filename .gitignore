@@ -1,0 +1,9 @@
+*.py
+*.css
+*.html
+
+.DS_Store
+
+.gitattributes
+
+.github/
