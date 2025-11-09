@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Repository Explorer</title>
+<style>
+  :root {
+    --bg: rgb(53, 58, 64);
+    --fg: white;
+    --accent: #2563eb;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: monospace;
+    margin: 2rem;
+  }
+  h1 {
+    font-size: 40px;
+    margin-bottom: 1rem;
+  }
+  ul {
+    list-style: none;
+    padding-left: 1rem;
+  }
+  li {
+    margin: 4px 0;
+    font-size: 30px;
+  }
+  .folder > .name::before {
+    content: "📁 ";
+  }
+  .file::before {
+    content: "📄 ";
+  }
+  .folder .children {
+    display: none;
+    margin-left: 1rem;
+    border-left: 1px solid #ddd;
+    padding-left: 0.6rem;
+  }
+  .folder.open > .children {
+    display: block;
+    animation: fadeIn 0.2s ease-in;
+  }
+  .name {
+    cursor: pointer;
+    user-select: none;
+  }
+  a {
+    text-decoration: none;
+    color: var(--accent);
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  @keyframes fadeIn {
+    from {opacity: 0;}
+    to {opacity: 1;}
+  }
+</style>
+</head>
+<body>
+<h1>2K25 Resources</h1>
+<hr>
+<div id="status">Loading repository tree…</div>
+<ul id="tree"></ul>
+
+<script>
+const owner = "SSKTJ";
+const repo = "2K25-Resources";
+const branch = "main";
+
+const apiUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+
+async function getRepoTree() {
+  const res = await fetch(apiUrl);
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()).tree;
+}
+
+function buildHierarchy(paths) {
+  const root = {};
+  for (const file of paths) {
+    const parts = file.path.split("/");
+    let current = root;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (i === parts.length - 1) {
+        current[part] = { _file: true, path: file.path };
+      } else {
+        current[part] = current[part] || {};
+        current = current[part];
+      }
+    }
+  }
+  return root;
+}
+
+function renderTree(node, parent) {
+  const ul = document.createElement("ul");
+  for (const key of Object.keys(node).sort()) {
+    const val = node[key];
+    const li = document.createElement("li");
+    if (val._file) {
+      li.classList.add("file");
+      const a = document.createElement("a");
+      a.textContent = key;
+      a.href = rawBase + encodeURIComponent(val.path).replace(/%2F/g, "/");
+      a.target = "_blank";
+      li.appendChild(a);
+    } else {
+      li.classList.add("folder");
+      const span = document.createElement("span");
+      span.classList.add("name");
+      span.textContent = key;
+      li.appendChild(span);
+      const children = renderTree(val, li);
+      children.classList.add("children");
+      li.appendChild(children);
+      span.onclick = () => li.classList.toggle("open");
+    }
+    ul.appendChild(li);
+  }
+  return ul;
+}
+
+(async function init() {
+  try {
+    const status = document.getElementById("status");
+    status.textContent = "Fetching files...";
+    const tree = await getRepoTree();
+    const files = tree.filter(f => f.type === "blob");
+    const hierarchy = buildHierarchy(files);
+    const treeEl = document.getElementById("tree");
+    treeEl.appendChild(renderTree(hierarchy));
+    status.remove();
+  } catch (err) {
+    document.getElementById("status").textContent = "Error loading repo: " + err.message;
+  }
+})();
+</script>
+</body>
+</html>
